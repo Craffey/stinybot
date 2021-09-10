@@ -1,3 +1,4 @@
+#/
 # stiny bot main controller
 # SQL to view incomming imessages
 # applescript to send outgoing messages
@@ -6,9 +7,32 @@
 
 use DBI;
 use Switch;
+use Text::Parsewords;
 
 # config variables
 my $timeLimit = 5; # number of seconds to look back in SQL query
+
+# Send message function (message, GUID)
+sub send_message {
+    `osascript send.scpt "$_[0]" "$_[1]"`;
+    return;
+}
+
+# Command functions (argument(s), GUID)
+sub thoughts {
+    my $target = $_[0];
+    for (1..5) {
+        send_message("$target, THOUGHTS???", $_[1]);
+        sleep(1);
+    }
+}
+
+sub thanks {
+    if ($_[0] eq "stinybot") {
+        send_message("<3", $_[1]);
+    }
+    return;
+}
 
 # get the messages db file
 chomp (my $username = `whoami`);
@@ -43,28 +67,35 @@ while(1) {
     # loop through each row of the result set
     while(($timestamp,$command,$guid) = $sth->fetchrow()){
         # Separate the command from the arguments
-        my @arguments = split(' ', $command);
-        $command = shift(@arguments);
+        my @args = split(' ', $command);
+        $command = shift(@args);
         my $response = "";
-        print("Timestamp: $timestamp\tCommand: $command @arguments\tGUID: $guid\n");
+        print("Timestamp: $timestamp\tCommand: $command @args\tGUID: $guid\n");
         # get the correct response based on the command
         switch($command) {
-            case "/help"    {$response = "This is stinybot.\tUsage: /<command> [arguments]
+            case "/help"        {$response = "This is stinybot.\tUsage: /<command> [arguments]
+                If response takes > ~$timeLimit seconds, resend
                                 Available commands:
                                 /help
                                 /date
-                                /barf"}
+                                /barf
+                                /joke
+                                /thoughts <person name>
+                                /thanks stinybot"}
 
-            case "/date"    {chomp($response = `date`)}
-            case "/barf"    {$response = "Timestamp: $timestamp\tCommand: $command @arguments\tGUID: $guid"}
-            
+            case "/date"        {chomp($response = `date`)}
+            case "/barf"        {$response = "Timestamp: $timestamp\tCommand: $command @args\tGUID: $guid"}
+            case "/joke"        {$response = "ned lol."}
+            case "/thoughts"    {$response = thoughts(join(' ', @args), $guid)}
+            case "/thanks"      {thanks($args[0], $guid)}
+
             else            {$response = "command not found. Try /help"}
+        }
+        # send the response back as a reply
+        send_message($response, $guid);                 
     }
-    # send the response back as a reply
-    `osascript send.scpt "$response" "$guid"`;                 
-    }
-# delay by time limit factor
-sleep($timeLimit);
+    # delay by time limit factor
+    sleep($timeLimit);
 }
 
 # clean up
