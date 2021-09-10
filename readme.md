@@ -1,12 +1,16 @@
 # Stinybot
 
-Alpha steps:
+Steps to run:
 
-1. open sqlite3 in the command line
-2. copy and paste database handler script in 
-   1. matching messages will output
-3. in a shell call:
-    osascript send.scpt "message" "<GUID>"
+1. Run perl stinybot.pl
+2. ctrl+c to stop
+
+Perl Dependencies:
+
+1. DBI [Installing Perl/DBI support on Unix and Mac OS X](http://dcx.sybase.com/1200/en/dbprogramming/dbd-sqlany-install-unix.html) (install DBI perl module section)
+2. Switch
+   1. sudo cpan
+   2. install Switch
 
 
 ## Resources
