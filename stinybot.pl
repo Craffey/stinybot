@@ -9,13 +9,20 @@ use DBI;
 use Switch;
 use Text::Parsewords;
 
-# config variables
+# Config variables
 my $timeLimit = 5; # number of seconds to look back in SQL query
 
 # Send message function (message, GUID)
 sub send_message {
     `osascript send.scpt "$_[0]" "$_[1]"`;
     return;
+}
+
+# Clean out backtick marks to avoid unwanted command line access
+sub tick_clean {
+    my $cmd = $_[0];
+    $cmd =~ s/`//g; #replace ticks with nothing
+    return $cmd;
 }
 
 # Command functions (argument(s), GUID)
@@ -27,6 +34,7 @@ sub thoughts {
     }
 }
 
+# Thank stinybot
 sub thanks {
     if ($_[0] eq "stinybot") {
         send_message("<3", $_[1]);
@@ -34,6 +42,7 @@ sub thanks {
     return;
 }
 
+## SQL setup
 # get the messages db file
 chomp (my $username = `whoami`);
 my $dbfile = "/Users/$username/Library/Messages/chat.db";
@@ -48,11 +57,13 @@ my $dbh = DBI->connect($dsn, $user, $password, {AutoCommit=>1,RaiseError=>1,Prin
 my $sql = "SELECT 
     message.date / 1000000000 + strftime ('%s', '2001-01-01') as message_secs,
     message.text, 
-    chat.guid
+    chat.guid,
+    handle.id
 FROM
     chat 
     JOIN chat_message_join ON chat. 'ROWID' = chat_message_join.chat_id
     JOIN message ON chat_message_join.message_id = message. 'ROWID'
+    LEFT JOIN handle ON message.handle_id = handle.'ROWID'
 WHERE
     message_secs > strftime ('%s', 'now') - $timeLimit AND message.text like '/%'
 ORDER BY
@@ -61,16 +72,22 @@ ORDER BY
 # get a statement handle object
 my $sth = $dbh->prepare($sql);
 
+## Main loop
 while(1) {
     # execute the query
     $sth->execute or die "unable to execute query on db\n";
     # loop through each row of the result set
-    while(($timestamp,$command,$guid) = $sth->fetchrow()){
-        # Separate the command from the arguments
+    while(($timestamp,$command,$guid,$handle_id) = $sth->fetchrow()){
+        # Sanitize input
+        $command = tick_clean($command);
+        
+        # Separate the command & arguments
         my @args = split(' ', $command);
         $command = shift(@args);
         my $response = "";
+        
         print("Timestamp: $timestamp\tCommand: $command @args\tGUID: $guid\n");
+        
         # get the correct response based on the command
         switch($command) {
             case "/help"        {$response = "This is stinybot.\tUsage: /<command> [arguments]
@@ -81,23 +98,29 @@ while(1) {
                                 /barf
                                 /joke
                                 /thoughts <person name>
+                                /whoami
+
                                 /thanks stinybot"}
 
             case "/date"        {chomp($response = `date`)}
             case "/barf"        {$response = "Timestamp: $timestamp\tCommand: $command @args\tGUID: $guid"}
-            case "/joke"        {$response = "ned lol."}
+            case "/joke"        {$response = "flig lol."}
             case "/thoughts"    {$response = thoughts(join(' ', @args), $guid)}
+            case "/whoami"      {$response =  "You are $handle_id"}
+
             case "/thanks"      {thanks($args[0], $guid)}
 
             else            {$response = "command not found. Try /help"}
         }
+
         # send the response back as a reply
         send_message($response, $guid);                 
     }
+
     # delay by time limit factor
     sleep($timeLimit);
 }
 
-# clean up
+## Clean up
 $sth->finish();
 $dbh->disconnect();
