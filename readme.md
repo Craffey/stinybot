@@ -7,7 +7,9 @@ Steps to run:
 
 Input Sanitization:
 
-Since stinybot runs on a local terminal, it is important that no commands can be passed to it that allow users to run any command they like. This behavior is prevented by parsing all commands to remove all backtick marks, which would cause perl to execute arguments as shell commands. In my experiments, the backticks do not evaluate until the call to send a message, so cleaning them right after pulling the command into its own variable should be sufficient. 
+Since stinybot runs on a local terminal, it is important that no commands can be passed to it that allow users to run any command they like. This behavior is prevented by parsing all commands to remove all backtick marks, which would cause perl to execute arguments as shell commands.
+
+In my experiments, the backticks do not evaluate until the call to send a message, so cleaning them right after pulling the command into its own variable should be sufficient. 
 
 Perl Dependencies:
 

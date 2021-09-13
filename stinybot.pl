@@ -1,5 +1,5 @@
 #/
-# stiny bot main controller
+# stinybot main controller
 # SQL to view incomming imessages
 # applescript to send outgoing messages
 # John Craffey
@@ -9,8 +9,8 @@ use DBI;
 use Switch;
 use Text::Parsewords;
 
-# Config variables
 my $timeLimit = 5; # number of seconds to look back in SQL query
+my %nicknames; # Hash of all the nicknames
 
 # Send message function (message, GUID)
 sub send_message {
@@ -31,6 +31,48 @@ sub thoughts {
     for (1..5) {
         send_message("$target, THOUGHTS???", $_[1]);
         sleep(1);
+    }
+}
+
+# Set new nickname for a given number
+sub set_nickname {
+    my $number = $_[0];
+    my $newNickname = $_[1];
+    my $guid = $_[2];
+    my $hashKey = $guid;
+    
+    # Clean off the +1 in phone number
+    $number =~ s/^\+\d//;
+    
+    # Clean ASCII out of guid to use in hashKey
+    $hashKey =~ s/^\D+//;
+    
+    $hashKey += $number;
+    
+    # Hash the nickname
+    $nicknames{"$hashKey"} = $newNickname;
+
+    send_message("$number nickname set to $nicknames{$hashKey}", $guid);
+}
+
+# Get a nickname for a given number
+sub get_nickname {
+    my $number = $_[0];
+    my $guid = $_[1];
+    my $hashKey = $guid;
+    
+    # Clean off the +1 in phone number
+    $number =~ s/^\+\d//;
+    
+    # Clean ASCII out of guid to use in hashKey
+    $hashKey =~ s/^\D+//;
+
+    $hashKey += $number;
+    if ($nicknames{$hashKey}) {
+        send_message("Nickname is $nicknames{$hashKey}", $guid);
+    }
+    else {
+        send_message("No nickname found for $number", $guid);
     }
 }
 
@@ -69,14 +111,15 @@ WHERE
 ORDER BY
     message_secs ASC;";
 
-# get a statement handle object
+# Get a statement handle object
 my $sth = $dbh->prepare($sql);
 
 ## Main loop
 while(1) {
-    # execute the query
+    my $loopStartTime = 
+    # Execute the query
     $sth->execute or die "unable to execute query on db\n";
-    # loop through each row of the result set
+    # Loop through each row of the result set
     while(($timestamp,$command,$guid,$handle_id) = $sth->fetchrow()){
         # Sanitize input
         $command = tick_clean($command);
@@ -88,7 +131,7 @@ while(1) {
         
         print("Timestamp: $timestamp\tCommand: $command @args\tGUID: $guid\n");
         
-        # get the correct response based on the command
+        # Get the correct response based on the command
         switch($command) {
             case "/help"        {$response = "This is stinybot.\tUsage: /<command> [arguments]
                 If response takes > ~$timeLimit seconds, resend
@@ -99,6 +142,8 @@ while(1) {
                                 /joke
                                 /thoughts <person name>
                                 /whoami
+                                /setnickname <phone num> <new nickname>
+                                /getnickname <phone num>
 
                                 /thanks stinybot"}
 
@@ -107,17 +152,19 @@ while(1) {
             case "/joke"        {$response = "flig lol."}
             case "/thoughts"    {$response = thoughts(join(' ', @args), $guid)}
             case "/whoami"      {$response =  "You are $handle_id"}
+            case "/setnickname" {set_nickname(shift(@args), join(' ', @args), $guid)}
+            case "/getnickname" {get_nickname(@args[0], $guid)}
 
             case "/thanks"      {thanks($args[0], $guid)}
 
             else            {$response = "command not found. Try /help"}
         }
 
-        # send the response back as a reply
+        # Send the response back as a reply
         send_message($response, $guid);                 
     }
 
-    # delay by time limit factor
+    # Delay by time limit factor
     sleep($timeLimit);
 }
 
